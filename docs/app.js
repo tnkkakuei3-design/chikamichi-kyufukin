@@ -6,6 +6,7 @@
   const arrow = '<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>';
   const tick = '<span class="check-dot"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>';
   const official = 'https://www.hellowork.mhlw.go.jp/insurance/insurance_basicbenefit.html';
+  const service = 'service/';
   const questions = [
     { id: 'status', title: '現在の状況を教えてください', hint: 'いちばん近いものを選んでください。', options: [
       ['considering','退職を考えている'],['planned','退職日が決まっている'],['left','すでに退職した'],['newjob','再就職が決まっている']
@@ -49,8 +50,8 @@
   function showResult(){
     const points=buildResult(answers);
     const line=getLineUrl();
-    resultText='ちかみち給付金｜あなたの確認ポイント\n\n'+points.map(([title,text],i)=>`${i+1}. ${title}\n${text}`).join('\n\n')+'\n\nこのチェックは受給資格・金額の判定ではありません。\n公式案内：'+official;
-    content.innerHTML=`<span class="result-badge">4問のチェックが完了しました</span><h2 id="check-heading" tabindex="-1">あなたの確認ポイント</h2><p class="result-lead">回答に合わせて、次に確認したいことを<br>3つに整理しました。</p><ol class="result-points">${points.map(([title,text])=>`<li>${tick}<div><b>${title}</b><p>${text}</p></div></li>`).join('')}</ol><p class="result-disclaimer">この結果は、受給できる・できないの判定や、金額の見積もりではありません。ご自身の条件は、管轄のハローワークでご確認ください。</p>${line?`<a class="result-link green" href="${line}" target="_blank" rel="noopener noreferrer">LINEで相談する ${arrow}</a>`:''}<a class="result-link" href="${official}" target="_blank" rel="noopener noreferrer">公式の案内で確認する ${arrow}</a><div class="result-actions"><button data-copy>確認ポイントをコピー</button><button data-restart>もう一度チェックする</button></div>`;
+    resultText='ちかみち給付金｜あなたの確認ポイント\n\n'+points.map(([title,text],i)=>`${i+1}. ${title}\n${text}`).join('\n\n')+'\n\nこのチェックは受給資格・金額の判定ではありません。\nサポート内容：'+new URL(service,location.href).href+'\n公式案内：'+official;
+    content.innerHTML=`<span class="result-badge">4問のチェックが完了しました</span><h2 id="check-heading" tabindex="-1">あなたの確認ポイント</h2><p class="result-lead">回答に合わせて、次に確認したいことを<br>3つに整理しました。</p><ol class="result-points">${points.map(([title,text])=>`<li>${tick}<div><b>${title}</b><p>${text}</p></div></li>`).join('')}</ol><p class="result-disclaimer">この結果は、受給できる・できないの判定や、金額の見積もりではありません。ご自身の条件は、管轄のハローワークでご確認ください。</p>${line?`<a class="result-link green" href="${line}" target="_blank" rel="noopener noreferrer">LINEで相談する ${arrow}</a>`:''}<a class="result-link" href="${service}">サポート内容を確認する ${arrow}</a><div class="result-actions"><button data-copy>確認ポイントをコピー</button><button data-restart>もう一度チェックする</button></div>`;
     focusTitle();
   }
   document.querySelectorAll('[data-start]').forEach(button=>button.addEventListener('click',()=>{lastTrigger=button;index=0;answers={};renderQuestion();dialog.showModal();lock();focusTitle();}));
@@ -71,8 +72,8 @@
   document.querySelector('[data-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('close',()=>{unlock();lastTrigger?.focus({preventScroll:true});});
   const info={
-    about:{title:'このサイトについて',html:'<p>「ちかみち給付金」は、退職後の給付制度について確認するための情報ガイドです。このページの簡易チェックは、回答に応じた確認事項を整理するものです。</p><p>行政機関や給付金の支給窓口ではなく、このページで申請や受給資格の決定を行うことはできません。制度の詳細とご自身の条件は、ハローワークの公式案内・窓口でご確認ください。</p><p>掲載の人物は、AIで生成したイメージです。</p><p><a href="'+official+'" target="_blank" rel="noopener noreferrer">ハローワーク：基本手当について ↗</a></p>'},
-    privacy:{title:'プライバシーについて',html:'<p>このページの無料チェックでは、氏名・電話番号・メールアドレスなどの連絡先を入力する必要はありません。</p><p>チェックの回答は、このページ内で確認ポイントを表示するためにのみ使用します。回答を外部に送信したり、ブラウザに永続保存したりする処理はありません。ページを再読み込みすると回答は消えます。</p><p>外部の公式案内やLINEなどのリンク先では、それぞれのサービスのプライバシーポリシーが適用されます。</p>'}
+    about:{title:'このサイトについて',html:'<p>「ちかみち給付金」は、退職後の給付制度について確認するための情報ガイドです。このページの簡易チェックは、回答に応じた確認事項を整理するものです。</p><p>チェック後は、ちかみち給付金サポートのサービス内容をご覧いただけます。<a href="service/#profile">会社情報</a>・<a href="service/#commerce">サービス料金</a>・<a href="service/#contact">お問い合わせ先</a>はこちらからも確認できます。</p><p>行政機関や給付金の支給窓口ではなく、このページで申請や受給資格の決定を行うことはできません。制度の詳細とご自身の条件は、ハローワークの公式案内・窓口でご確認ください。</p><p>掲載の人物は、AIで生成したイメージです。</p><p><a href="'+official+'" target="_blank" rel="noopener noreferrer">ハローワーク：基本手当について ↗</a></p>'},
+    privacy:{title:'プライバシーについて',html:'<p>このページの無料チェックでは、氏名・電話番号・メールアドレスなどの連絡先を入力する必要はありません。</p><p>チェックの回答は、このページ内で確認ポイントを表示するためにのみ使用します。回答を外部に送信したり、ブラウザに永続保存したりする処理はありません。ページを再読み込みすると回答は消えます。</p><p>サポートサービスの個人情報の取り扱いは、<a href="service/#privacy">プライバシーポリシー</a>をご確認ください。</p><p>外部の公式案内やLINEなどのリンク先では、それぞれのサービスのプライバシーポリシーが適用されます。</p>'}
   };
   document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{const item=info[button.dataset.info];document.querySelector('#info-title').textContent=item.title;document.querySelector('#info-content').innerHTML=item.html;infoDialog.showModal();lock();}));
   document.querySelector('[data-info-close]').addEventListener('click',()=>infoDialog.close());
