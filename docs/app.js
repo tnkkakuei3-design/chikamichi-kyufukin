@@ -3,81 +3,87 @@
   const dialog = document.querySelector('#check-dialog');
   const content = document.querySelector('#check-content');
   const infoDialog = document.querySelector('#info-dialog');
+  const guide = window.BenefitGuide;
   const arrow = '<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>';
-  const tick = '<span class="check-dot"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>';
-  const official = 'https://www.hellowork.mhlw.go.jp/insurance/insurance_basicbenefit.html';
-  const service = 'service/';
+  const yen = n => new Intl.NumberFormat('ja-JP').format(n) + '円';
   const questions = [
-    { id: 'status', title: '現在の状況を教えてください', hint: 'いちばん近いものを選んでください。', options: [
-      ['considering','退職を考えている'],['planned','退職日が決まっている'],['left','すでに退職した'],['newjob','再就職が決まっている']
-    ]},
-    { id: 'age', title: '退職時の年齢を教えてください', hint: '退職前の方は、退職予定時の年齢を選んでください。', options: [['under65','64歳以下'],['over65','65歳以上']]},
-    { id: 'insurance', title: '雇用保険に加入していますか？', hint: '退職済みの方は、退職前の状況を選んでください。', options: [['yes','加入している・加入していた'],['no','加入していない・加入していなかった'],['unknown','わからない']]},
-    { id: 'work', title: '再就職について教えてください', hint: '今の希望・状況に近いものを選んでください。', options: [['ready','働ける状態で、再就職を希望している'],['notready','すぐには働けない事情がある'],['undecided','まだ決まっていない']]}
+    {id:'age',title:'退職時の年齢は？',hint:'退職前の方は、予定時の年齢を選んでください。',options:[['under30','29歳以下'],['30to34','30〜34歳'],['35to44','35〜44歳'],['45to59','45〜59歳'],['60to64','60〜64歳'],['65plus','65歳以上']]},
+    {id:'work',title:'退職後の働き方について',hint:'現在または退職後に想定している状況を選んでください。',options:[['ready','働ける状態で、仕事を探す'],['notready','病気・育児などですぐには働けない'],['newjob','再就職先がすでに決まっている'],['unknown','まだ決めていない・わからない']]},
+    {id:'reason',title:'退職の理由は？',hint:'最も近いものを選択。最終的な離職理由の区分はハローワークが確認します。',options:[['self','通常の自己都合・定年など'],['dismissal','倒産・解雇などの会社都合'],['contract','更新を希望したが契約が終了した'],['justified','病気・家族の介護など、やむを得ない理由'],['unknown','区分がわからない']]},
+    {id:'contractWindow',title:'契約が終了する日は？',hint:'雇止めの一部に適用される、給付日数の特例を確認します。',options:[['before202704','2027年3月31日まで'],['after202704','2027年4月1日以降'],['unknown','まだ決まっていない・わからない']]},
+    {id:'recent',title:'直近の雇用保険の期間は？',hint:'原則、賃金の支払基礎日数11日以上、または80時間以上の月を数えます。上から順に当てはまるものを選んでください。',options:[['12months','離職前2年間に12か月以上'],['6months','上には当てはまらず、離職前1年間に6か月以上'],['short','どちらの期間にも満たない'],['none','雇用保険に加入していない'],['unknown','わからない']]},
+    {id:'period',title:'給付日数に使う通算加入期間は？',hint:'給付を受けた以前の期間や、1年を超える加入の空白などは通算できない場合があります。わからないときは未確認を選べます。',options:[['under1','1年未満'],['1to4','1年以上・5年未満'],['5to9','5年以上・10年未満'],['10to19','10年以上・20年未満'],['20plus','20年以上'],['unknown','未確認・わからない']]},
+    {id:'category',title:'「就職困難者」の区分は？',hint:'障害などがある方に適用される場合がある制度上の区分です。「仕事が見つかりにくい」という意味ではありません。',options:[['none','この区分には該当しない'],['confirmed','ハローワークで該当すると確認済み'],['possible','該当する可能性はあるが、未確認'],['unknown','わからない']]},
+    {id:'monthlyYen',title:'退職前6か月の平均月給は？',hint:'税・社会保険料を引く前の給与（賞与を除く）を入力してください。給与が変動する場合は6か月の合計÷6です。',salary:true}
   ];
-  let index = 0;
-  let answers = {};
-  let lastTrigger = null;
-  let resultText = '';
-  let toastTimer;
-  function lock(){ document.body.classList.add('modal-open'); }
-  function unlock(){ if(!dialog.open && !infoDialog.open) document.body.classList.remove('modal-open'); }
-  function focusTitle(){ content.querySelector('h2')?.focus({preventScroll:true}); dialog.scrollTop=0; }
+  let index=0, answers={}, lastTrigger=null, infoTrigger=null, resultText='';
+  const sequence = () => questions.filter(q => q.id !== 'contractWindow' || answers.reason === 'contract');
+  function lock(){document.body.classList.add('modal-open');}
+  function unlock(){if(!dialog.open&&!infoDialog.open)document.body.classList.remove('modal-open');}
+  function focusTitle(){content.querySelector('h2')?.focus({preventScroll:true});dialog.scrollTop=0;}
   function renderQuestion(){
-    const q=questions[index];
-    content.innerHTML=`<div class="check-progress" role="progressbar" aria-label="質問の進み具合" aria-valuemin="1" aria-valuemax="4" aria-valuenow="${index+1}">${questions.map((_,i)=>`<span class="${i<=index?'done':''}"></span>`).join('')}</div>
-      <p class="question-count">QUESTION <b>${index+1}</b> / 4</p><h2 id="check-heading" tabindex="-1">${q.title}</h2><p class="question-hint">${q.hint}</p>
-      <div class="question-options">${q.options.map(([value,label])=>`<button class="option-button" data-answer="${value}" aria-pressed="${answers[q.id]===value}">${label}${arrow}</button>`).join('')}</div>
-      <div class="dialog-bottom"><button class="back-button" data-back ${index===0?'disabled':''}>前の質問に戻る</button><span class="privacy-mini">回答は外部に送信されません</span></div>`;
+    const steps=sequence(), q=steps[index];
+    const fields=q.salary?`<form id="salary-form"><label class="salary-label" for="monthly-salary">平均月給（額面）</label><div class="salary-field"><input id="monthly-salary" name="monthly-salary" inputmode="decimal" type="number" min="0.01" max="1000" step="0.01" required placeholder="例：30" value="${answers.monthlyYen?answers.monthlyYen/10000:''}" aria-describedby="salary-help salary-error"><span>万円</span></div><p id="salary-help" class="question-hint">例：月給30万円なら「30」。結果は1円単位で表示します。</p><p id="salary-error" class="field-error" role="alert"></p><button class="result-link green" type="submit">無料で結果を見る ${arrow}</button></form><button class="unknown-button" data-salary-unknown>月給がわからないので、日数だけ見る</button>`:`<div class="question-options ${q.id==='age'?'age-options':''}">${q.options.map(([value,label])=>`<button class="option-button" data-answer="${value}" aria-pressed="${answers[q.id]===value}">${label}${arrow}</button>`).join('')}</div>`;
+    content.innerHTML=`<div class="check-progress" role="progressbar" aria-label="質問の進み具合" aria-valuemin="1" aria-valuemax="${steps.length}" aria-valuenow="${index+1}">${steps.map((_,i)=>`<span class="${i<=index?'done':''}"></span>`).join('')}</div><p class="question-count">質問 <b>${index+1}</b> / ${steps.length}</p><h2 id="check-heading" tabindex="-1">${q.title}</h2><p class="question-hint">${q.hint}</p>${fields}<div class="dialog-bottom"><button class="back-button" data-back ${index===0?'disabled':''}>前の質問に戻る</button><span class="privacy-mini">登録不要・結果まで無料</span></div>`;
     focusTitle();
   }
-  function buildResult(a){
-    const points=[];
-    if(a.status==='newjob') points.push(['再就職が決まっていることを伝える','仕事が決まった時期や、雇用保険の手続きの状況によって確認内容が変わります。まずはその状況をハローワークに伝えてください。']);
-    else if(a.status==='considering'||a.status==='planned') points.push(['退職前の書類・加入状況を確認','雇用保険被保険者証や給与明細を確認し、退職日と退職理由を整理しておきましょう。退職前の準備に役立ちます。']);
-    else points.push(['離職票と退職時の状況を確認','離職票の受け取り状況や記載内容を確認しましょう。交付されない場合も、管轄のハローワークへ相談できます。']);
-    if(a.insurance==='yes') points.push([a.age==='over65'?'高年齢求職者給付金の条件を確認':'雇用保険の基本手当の条件を確認',a.age==='over65'?'65歳以上の被保険者は、基本手当とは異なる給付の対象となる場合があります。加入期間など、ご自身の条件を窓口で確認してください。':'加入していた期間や離職理由によって確認すべき条件が変わります。加入していたことだけで受給が決まるわけではありません。']);
-    else if(a.insurance==='unknown') points.push(['雇用保険に加入していたかを確認','給与明細や雇用保険の書類を確認してください。判断がつかない場合は、勤務先またはハローワークへ確認しましょう。']);
-    else points.push(['雇用保険の加入記録を窓口で確認','雇用保険の給付には加入状況の確認が必要です。勤務実態と加入記録について、ハローワークで相談してみましょう。']);
-    if(a.work==='notready') points.push(['すぐに働けない事情を窓口へ相談','働ける状態であることは給付の重要な条件です。受給期間の延長などの扱いは、年齢や事情により異なるため、窓口で確認してください。']);
-    else if(a.work==='undecided') points.push(['今後の働き方・求職の希望を整理','働く意思や就職できる状態かどうかも確認の対象です。今後の希望を整理し、ご自身の場合を窓口で相談しましょう。']);
-    else points.push(['求職の申込み・必要な手続きを確認','受給の確認には求職の申込みなどの手続きが必要です。公式の案内を読み、ご自身に必要な書類や手続きを確認しましょう。']);
-    return points;
+  function finishEarly(id,value){
+    return id==='age'&&value==='65plus'||id==='work'&&value!=='ready'||id==='reason'&&value==='unknown'||id==='contractWindow'&&value!=='before202704'||id==='recent'&&(!['12months','6months'].includes(value)||value==='6months'&&answers.reason==='self')||id==='period'&&(value==='unknown'||value==='under1'&&answers.recent==='12months'||value==='20plus'&&answers.age==='under30')||id==='category'&&!['none','confirmed'].includes(value);
   }
-  function getLineUrl(){
-    try{const url=new URL(window.CHIKAMICHI_CONFIG?.lineUrl);return url.protocol==='https:'&&['lin.ee','line.me'].includes(url.hostname)?url.href:null;}catch{return null;}
+  function accept(value){
+    const current=sequence(), q=current[index];
+    const pos=questions.findIndex(item=>item.id===q.id);
+    if(answers[q.id]!==value)questions.slice(pos+1).forEach(item=>delete answers[item.id]);
+    answers[q.id]=value;
+    if(finishEarly(q.id,value)){showResult();return;}
+    index++;
+    if(index>=sequence().length)showResult();else renderQuestion();
+  }
+  function answerList(){
+    return sequence().filter(q=>Object.hasOwn(answers,q.id)).map(q=>[q.title,q.salary?(answers.monthlyYen?yen(answers.monthlyYen):'未確認'):q.options.find(o=>o[0]===answers[q.id])[1]]);
   }
   function showResult(){
-    const points=buildResult(answers);
-    const line=getLineUrl();
-    resultText='ちかみち給付金｜あなたの確認ポイント\n\n'+points.map(([title,text],i)=>`${i+1}. ${title}\n${text}`).join('\n\n')+'\n\nこのチェックは受給資格・金額の判定ではありません。\nサポート内容：'+new URL(service,location.href).href+'\n公式案内：'+official;
-    content.innerHTML=`<span class="result-badge">4問のチェックが完了しました</span><h2 id="check-heading" tabindex="-1">あなたの確認ポイント</h2><p class="result-lead">回答に合わせて、次に確認したいことを<br>3つに整理しました。</p><ol class="result-points">${points.map(([title,text])=>`<li>${tick}<div><b>${title}</b><p>${text}</p></div></li>`).join('')}</ol><p class="result-disclaimer">この結果は、受給できる・できないの判定や、金額の見積もりではありません。ご自身の条件は、管轄のハローワークでご確認ください。</p>${line?`<a class="result-link green" href="${line}" target="_blank" rel="noopener noreferrer">LINEで相談する ${arrow}</a>`:''}<a class="result-link" href="${service}">サポート内容を確認する ${arrow}</a><div class="result-actions"><button data-copy>確認ポイントをコピー</button><button data-restart>もう一度チェックする</button></div>`;
+    const r=guide.estimate(answers), answered=answerList();
+    const amount=r.total!==null?`<div class="estimate-amount"><span>所定給付日数の全日分を受け取る場合の総額</span><strong>${new Intl.NumberFormat('ja-JP').format(r.total)}<small>円</small></strong><p>基本手当日額 ${yen(r.daily)} × ${r.days}日</p></div>`:r.days!==null?`<div class="estimate-amount"><span>所定給付日数の目安</span><strong>${r.days}<small>日</small></strong><p>日額・総額は未算出です</p></div>`:'';
+    const notes=r.notes.map(text=>`<li>${text}</li>`).join('');
+    const assumptions=answered.map(([title,label])=>`<div><dt>${title}</dt><dd>${label}</dd></div>`).join('');
+    resultText=`ちかみち給付金｜${r.title}\n${r.total!==null?`${yen(r.total)}（${yen(r.daily)}×${r.days}日）`:r.days!==null?`${r.days}日・金額未算出`:'受給できないという判定ではありません。'}\n${r.category}\n\n${r.notes.join('\n')}\n\n回答条件\n${answered.map(x=>x.join('：')).join('\n')}\n計算基準：${guide.BASIS}\n出典：${guide.sources.rates}\n${guide.sources.days}`;
+    content.innerHTML=`<span class="result-badge">診断・結果表示ともに無料</span><h2 id="check-heading" tabindex="-1">${r.title}</h2>${amount}<p class="result-lead">${r.category||(r.status==='outside'?'この診断の試算対象外です。受給できないという判定ではありません。':'金額の試算には、以下の条件の確認が必要です。受給できないという判定ではありません。')}</p><ul class="estimate-notes">${notes}</ul><details class="answer-summary"><summary>回答した条件を確認する</summary><dl>${assumptions}</dl></details><p class="result-disclaimer">この診断は民間の情報提供サービスです。正式な受給資格・金額はハローワークが確認します。診断だけで申請は完了しません。</p><p class="result-source">基準：${guide.BASIS}<br>出典：<a href="${guide.sources.rates}" target="_blank" rel="noopener noreferrer">厚生労働省の計算表（PDF）↗</a>・<a href="${guide.sources.days}" target="_blank" rel="noopener noreferrer">給付日数表 ↗</a></p><button class="result-link" data-procedure>必要な手続きを見る ${arrow}</button><div class="result-actions"><button data-copy>結果をコピー</button><button data-edit>回答を見直す</button><button data-restart>最初から診断する</button></div><p class="copy-feedback" role="status"></p>`;
     focusTitle();
   }
-  document.querySelectorAll('[data-start]').forEach(button=>button.addEventListener('click',()=>{lastTrigger=button;index=0;answers={};renderQuestion();dialog.showModal();lock();focusTitle();}));
+  function start(trigger){lastTrigger=trigger;index=0;answers={};renderQuestion();dialog.showModal();lock();focusTitle();}
+  document.querySelectorAll('[data-start]').forEach(button=>button.addEventListener('click',()=>start(button)));
   content.addEventListener('click',async event=>{
     const answer=event.target.closest('[data-answer]');
-    if(answer){
-      answers[questions[index].id]=answer.dataset.answer;
-      if(index<questions.length-1){index++;renderQuestion();}else{index=questions.length;showResult();}
-      return;
-    }
+    if(answer){accept(answer.dataset.answer);return;}
     if(event.target.closest('[data-back]')&&index>0){index--;renderQuestion();}
+    if(event.target.closest('[data-salary-unknown]'))accept(null);
     if(event.target.closest('[data-restart]')){index=0;answers={};renderQuestion();}
-    if(event.target.closest('[data-copy]')){
-      try{await navigator.clipboard.writeText(resultText);toast('確認ポイントをコピーしました');}
-      catch{toast('コピーできませんでした。結果の文章を選択してコピーしてください。');}
+    if(event.target.closest('[data-edit]')){index=0;renderQuestion();}
+    if(event.target.closest('[data-procedure]')){
+      const target=document.querySelector('#procedure');lastTrigger=target.querySelector('h2');dialog.close();target.scrollIntoView();lastTrigger.focus({preventScroll:true});
     }
+    if(event.target.closest('[data-copy]')){
+      const status=content.querySelector('.copy-feedback');
+      try{await navigator.clipboard.writeText(resultText);status.textContent='結果をコピーしました。';}
+      catch{status.textContent='コピーできませんでした。結果の文章を選択してコピーしてください。';}
+    }
+  });
+  content.addEventListener('submit',event=>{
+    if(event.target.id!=='salary-form')return;event.preventDefault();
+    const input=content.querySelector('#monthly-salary'), number=Number(input.value);
+    if(!input.checkValidity()||!Number.isFinite(number)||number<=0||number>1000){content.querySelector('#salary-error').textContent='0より大きい額面月給を、万円単位で入力してください（上限1,000万円）。';input.focus();return;}
+    accept(Math.round(number*10000));
   });
   document.querySelector('[data-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('close',()=>{unlock();lastTrigger?.focus({preventScroll:true});});
   const info={
-    about:{title:'このサイトについて',html:'<p>「ちかみち給付金」は、退職後の給付制度について確認するための情報ガイドです。このページの簡易チェックは、回答に応じた確認事項を整理するものです。</p><p>チェック後は、ちかみち給付金サポートのサービス内容をご覧いただけます。<a href="service/#profile">会社情報</a>・<a href="service/#commerce">サービス料金</a>・<a href="service/#contact">お問い合わせ先</a>はこちらからも確認できます。</p><p>行政機関や給付金の支給窓口ではなく、このページで申請や受給資格の決定を行うことはできません。制度の詳細とご自身の条件は、ハローワークの公式案内・窓口でご確認ください。</p><p>掲載の人物は、AIで生成したイメージです。</p><p><a href="'+official+'" target="_blank" rel="noopener noreferrer">ハローワーク：基本手当について ↗</a></p>'},
-    privacy:{title:'プライバシーについて',html:'<p>このページの無料チェックでは、氏名・電話番号・メールアドレスなどの連絡先を入力する必要はありません。</p><p>チェックの回答は、このページ内で確認ポイントを表示するためにのみ使用します。回答を外部に送信したり、ブラウザに永続保存したりする処理はありません。ページを再読み込みすると回答は消えます。</p><p>サポートサービスの個人情報の取り扱いは、<a href="service/#privacy">プライバシーポリシー</a>をご確認ください。</p><p>外部の公式案内やLINEなどのリンク先では、それぞれのサービスのプライバシーポリシーが適用されます。</p>'}
+    about:{title:'このサイトについて',html:'<p>雇用保険の基本手当について、入力条件に応じた日額・日数・総額の目安と、確認事項をご案内する民間の無料サービスです。行政機関・支給窓口ではありません。</p><p>診断から結果表示まで無料です。有料契約、申請代行、連絡先の登録は必要ありません。</p><p><a href="service/#profile">運営会社</a>・<a href="service/#contact">お問い合わせ</a>・<a href="service/#commerce">無料の範囲と利用条件</a>をご確認いただけます。</p><p>掲載の人物はAIで生成したイメージです。</p>'},
+    privacy:{title:'回答の取り扱い',html:'<p>診断には氏名・電話番号・メールアドレスの入力は不要です。回答はこのブラウザのメモリ上だけで計算に使用し、外部への送信や永続保存は行いません。再読み込みすると消えます。</p><p>サイトの配信事業者は、配信・安全管理のためアクセス情報を処理する場合があります。お問い合わせメールや外部の公式リンク先は診断とは別の取り扱いです。</p><p><a href="service/#privacy">プライバシーポリシーの全文を見る</a></p>'}
   };
-  document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{const item=info[button.dataset.info];document.querySelector('#info-title').textContent=item.title;document.querySelector('#info-content').innerHTML=item.html;infoDialog.showModal();lock();}));
+  document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{infoTrigger=button;const item=info[button.dataset.info];document.querySelector('#info-title').textContent=item.title;document.querySelector('#info-content').innerHTML=item.html;infoDialog.showModal();lock();}));
   document.querySelector('[data-info-close]').addEventListener('click',()=>infoDialog.close());
-  infoDialog.addEventListener('close',unlock);
+  infoDialog.addEventListener('close',()=>{unlock();infoTrigger?.focus({preventScroll:true});});
   [dialog,infoDialog].forEach(el=>el.addEventListener('click',event=>{if(event.target!==el)return;const rect=el.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)el.close();}));
-  function toast(message){const node=document.querySelector('.toast');node.textContent=message;node.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.remove('show'),3500);}
+  if(location.hash==='#diagnosis')start(document.querySelector('[data-start]'));
 })();
